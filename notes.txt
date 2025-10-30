@@ -1,0 +1,20 @@
+Seccomp - sys call filtering
+
+^ notify a process that a system call
+
+Gvisor - sec comp ret_trap 
+
+Setup a thread in child process
+
+
+Have a monitor process that intercepts syscall from child process -> running arbitrary binary
+Syscall - libc 
+
+
+Gvisor DOCS
+- SystrapSeccomp
+
+Libc bindings for rust 
+
+
+Either trap into parent process 
