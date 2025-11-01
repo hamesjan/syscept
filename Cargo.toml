@@ -5,4 +5,7 @@ edition = "2024"
 
 [dependencies]
 fork = "0.3.1"
+libc = "0.2.177"
+libseccomp = "0.4.0"
+prctl = "1.0.0"
 
