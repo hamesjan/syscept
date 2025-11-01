@@ -9,3 +9,19 @@ $ bash setup.sh
 
 ```
 
+To Exit docker
+
+From within container
+```
+
+$ exit
+
+```
+
+To restart 
+
+```
+
+$ docker start -ai syscept_container
+
+```

@@ -1,4 +1,4 @@
-docker run -it ubuntu bash
+docker run -it --name syscept_container ubuntu bash
 cd ~
 apt update
 apt install -y git
