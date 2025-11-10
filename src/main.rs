@@ -14,11 +14,11 @@ struct Cli {
     path: PathBuf,
 }
 
-// #[repr(C)]
-// struct SigSysFields {
-//     _call_addr: *mut libc::c_void,
-//     syscall: libc::c_int,
-// }
+#[repr(C)]
+struct SigSysFields {
+    _call_addr: *mut libc::c_void,
+    syscall: libc::c_int,
+}
 
 extern "C" fn sigsys_handler(sig: i32, info: *mut siginfo_t, _ctx: *mut c_void) {
     unsafe {
