@@ -6,7 +6,7 @@ use seccompiler::{
     BpfProgram, SeccompAction, SeccompFilter,
 };
 use std::convert::TryInto;
-use libc::{self, c_void, siginfo_t, sigaction};
+use libc::{self, c_void, siginfo_t, sigaction, c_int, pid_t, SIGTRAP, WIFEXITED, WEXITSTATUS, WSTOPSIG};
 // use libc::execv;    
 
 // for CLI path
@@ -63,7 +63,7 @@ fn install_seccomp_trap_filter() {
     ]
     .into_iter()
     .collect(),
-    SeccompAction::Trap, // not in filter
+    SeccompAction::Trace(0), // SeccompAction::Trap, // not in filter
     SeccompAction::Allow, // match
     std::env::consts::ARCH.try_into().unwrap(),
     )
@@ -84,8 +84,42 @@ fn main(){
     match fork() {
         Ok(Fork::Parent(child)) => {
             println!("Continuing execution in parent process, new child has pid: {}", child);
+
+            // Wait for seccomp traps from the child
+            let mut status: c_int = 0;
+
+            loop {
+                unsafe {
+                    let pid = libc::waitpid(child, &mut status as *mut c_int, 0);
+                    if pid < 0 {
+                        eprintln!("waitpid failed");
+                        break;
+                    }
+
+                    if WIFEXITED(status) {
+                        let code = WEXITSTATUS(status);
+                        println!("[parent] child exited with {}", code);
+                        break;
+                    }
+
+                    // SIGTRAP indicates seccomp event (for SeccompAction::Trace)
+                    if WSTOPSIG(status) == SIGTRAP {
+                        println!("[parent] got SIGTRAP (seccomp event)");
+
+                        // You can inspect registers here if you like
+                        libc::ptrace(libc::PTRACE_SYSCALL, child, 0, 0);
+                    } else {
+                        // resume normally
+                        libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
+                    }
+                }
+            }
         }
         Ok(Fork::Child) => {
+            unsafe {
+                libc::ptrace(libc::PTRACE_TRACEME, 0, std::ptr::null_mut::<c_void>(), std::ptr::null_mut::<c_void>());
+            }
+
             install_sigsys_handler();
             install_seccomp_trap_filter(); // installs filter in child process
             println!("Child process: executing {:?}", args.path);
