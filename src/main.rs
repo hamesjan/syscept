@@ -85,6 +85,10 @@ fn main(){
         Ok(Fork::Parent(child)) => {
             println!("Continuing execution in parent process, new child has pid: {}", child);
 
+            unsafe {
+                libc::ptrace(libc::PTRACE_SEIZE, child, 0, libc::PTRACE_O_TRACESECCOMP);
+            }
+
             // Wait for seccomp traps from the child
             let mut status: c_int = 0;
 
@@ -116,10 +120,6 @@ fn main(){
             }
         }
         Ok(Fork::Child) => {
-            unsafe {
-                libc::ptrace(libc::PTRACE_TRACEME, 0, std::ptr::null_mut::<c_void>(), std::ptr::null_mut::<c_void>());
-            }
-
             install_sigsys_handler();
             install_seccomp_trap_filter(); // installs filter in child process
             println!("Child process: executing {:?}", args.path);
