@@ -49,8 +49,6 @@ fn main(){
         Ok(Fork::Parent(child)) => {
             println!("Continuing execution in parent process, new child has pid: {}", child);
 
-<<<<<<< HEAD
-=======
             
             /*
             long ptrace(enum __ptrace_request op, pid_t pid,
@@ -64,18 +62,10 @@ fn main(){
                 where pid is the thread ID of the corresponding Linux thread.
                    
             */
->>>>>>> james
             unsafe {
                 libc::ptrace(libc::PTRACE_SEIZE, child, 0, libc::PTRACE_O_TRACESECCOMP);
             }
 
-<<<<<<< HEAD
-            // Wait for seccomp traps from the child
-            let mut status: c_int = 0;
-
-            loop {
-                unsafe {
-=======
             let mut status: c_int = 0; // c_int = signed 32 bit int
 
             let mut has_accepted_first = false;
@@ -84,33 +74,18 @@ fn main(){
             loop {
                 unsafe {
                     // make parent wait for child state changes
->>>>>>> james
                     let pid = libc::waitpid(child, &mut status as *mut c_int, 0);
                     if pid < 0 {
                         eprintln!("waitpid failed");
                         break;
                     }
 
-<<<<<<< HEAD
-                    if WIFEXITED(status) {
-=======
                     if WIFEXITED(status) { // child has exited.
->>>>>>> james
                         let code = WEXITSTATUS(status);
                         println!("[parent] child exited with {}", code);
                         break;
                     }
 
-<<<<<<< HEAD
-                    // SIGTRAP indicates seccomp event (for SeccompAction::Trace)
-                    if WSTOPSIG(status) == SIGTRAP {
-                        println!("[parent] got SIGTRAP (seccomp event)");
-
-                        // You can inspect registers here if you like
-                        libc::ptrace(libc::PTRACE_SYSCALL, child, 0, 0);
-                    } else {
-                        // resume normally
-=======
                     // status 
                     if WIFSTOPPED(status) { // child is stopped, waitpid returned
                         
@@ -164,7 +139,6 @@ fn main(){
                         }
 
                         // else normal stop:
->>>>>>> james
                         libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
                     }
                 }
