@@ -6,56 +6,20 @@ use seccompiler::{
     BpfProgram, SeccompAction, SeccompFilter,
 };
 use std::convert::TryInto;
-use libc::{self, c_void, siginfo_t, sigaction, c_int, pid_t, SIGTRAP, WIFEXITED, WEXITSTATUS, WSTOPSIG};
-// use libc::execv;    
+use libc::{self, c_void, siginfo_t, sigaction, c_int, pid_t, SIGTRAP, WIFEXITED, WEXITSTATUS, WSTOPSIG, WIFSTOPPED};
 
 // for CLI path
 struct Cli {
     path: PathBuf,
 }
 
-#[repr(C)]
-struct SigSysFields {
-    _call_addr: *mut libc::c_void,
-    syscall: libc::c_int,
-}
-
-extern "C" fn sigsys_handler(sig: i32, info: *mut siginfo_t, _ctx: *mut c_void) {
-    unsafe {
-        // let sigsys_ptr = info as *const SigSysFields;
-
-        eprintln!(
-            "[SIGSYS] signal={} si_code={} errno={}",
-            sig,
-            (*info).si_code, 
-            (*info).si_errno,
-            // (*sigsys_ptr).syscall,
-            // (*sigsys_ptr)._call_addr,
-
-        );
-    }
-}
-
-fn install_sigsys_handler() {
-    unsafe {
-        let mut act: sigaction = std::mem::zeroed();
-        act.sa_sigaction = sigsys_handler as usize;
-        act.sa_flags = libc::SA_SIGINFO;
-
-        if libc::sigaction(libc::SIGSYS, &act, std::ptr::null_mut()) != 0 {
-            eprintln!("Failed to install SIGSYS handler");
-        }
-    }
-}
-
-
 fn install_seccomp_trap_filter() {
     // Only allow write syscall, everything else triggers Trap (SIGSYS)
     let filter: BpfProgram = SeccompFilter::new(
     vec![
-        (libc::SYS_accept4, vec![]),
+//        (libc::SYS_accept4, vec![]),
         (libc::SYS_write, vec![]),
-        (libc::SYS_read, vec![]),
+        // (libc::SYS_read, vec![]),
         (libc::SYS_getpid, vec![]),
 
         // Will have to define for all syscalls used by target binary
@@ -63,8 +27,8 @@ fn install_seccomp_trap_filter() {
     ]
     .into_iter()
     .collect(),
-    SeccompAction::Trace(0), // SeccompAction::Trap, // not in filter
-    SeccompAction::Allow, // match
+    SeccompAction::Allow, // mismtach action
+    SeccompAction::Trace(0), // natch action
     std::env::consts::ARCH.try_into().unwrap(),
     )
     .unwrap()
@@ -85,27 +49,59 @@ fn main(){
         Ok(Fork::Parent(child)) => {
             println!("Continuing execution in parent process, new child has pid: {}", child);
 
+<<<<<<< HEAD
+=======
+            
+            /*
+            long ptrace(enum __ptrace_request op, pid_t pid,
+                   void *addr, void *data);
+
+            Ptrace commands are always
+                sent to a specific tracee using a call of the form
+
+                    ptrace(PTRACE_foo, pid, ...)
+
+                where pid is the thread ID of the corresponding Linux thread.
+                   
+            */
+>>>>>>> james
             unsafe {
                 libc::ptrace(libc::PTRACE_SEIZE, child, 0, libc::PTRACE_O_TRACESECCOMP);
             }
 
+<<<<<<< HEAD
             // Wait for seccomp traps from the child
             let mut status: c_int = 0;
 
             loop {
                 unsafe {
+=======
+            let mut status: c_int = 0; // c_int = signed 32 bit int
+
+            let mut has_accepted_first = false;
+            
+            // Wait for seccomp traps from the child
+            loop {
+                unsafe {
+                    // make parent wait for child state changes
+>>>>>>> james
                     let pid = libc::waitpid(child, &mut status as *mut c_int, 0);
                     if pid < 0 {
                         eprintln!("waitpid failed");
                         break;
                     }
 
+<<<<<<< HEAD
                     if WIFEXITED(status) {
+=======
+                    if WIFEXITED(status) { // child has exited.
+>>>>>>> james
                         let code = WEXITSTATUS(status);
                         println!("[parent] child exited with {}", code);
                         break;
                     }
 
+<<<<<<< HEAD
                     // SIGTRAP indicates seccomp event (for SeccompAction::Trace)
                     if WSTOPSIG(status) == SIGTRAP {
                         println!("[parent] got SIGTRAP (seccomp event)");
@@ -114,13 +110,67 @@ fn main(){
                         libc::ptrace(libc::PTRACE_SYSCALL, child, 0, 0);
                     } else {
                         // resume normally
+=======
+                    // status 
+                    if WIFSTOPPED(status) { // child is stopped, waitpid returned
+                        
+                        /*
+                            sig = POSIX signal that caused the child to stop
+                            sig = 5 => SIGTRAP
+                        */
+
+                        let sig = libc::WSTOPSIG(status); // number of signal that caused child to stop
+                        println!("child stopped with signal {}", sig);
+
+                        let event = (status as u32 >> 16) & 0xffff;
+                        println!("ptrace event: {}, status: {}", event, status);
+                        // status>>8 == (SIGTRAP | (PTRACE_EVENT_SECCOMP<<8))
+                        
+                        // libc::PTRACE_EVENT_SECCOMP = 7 
+
+                        
+                        if sig == SIGTRAP{
+                            if event == libc::PTRACE_EVENT_SECCOMP as u32 {
+
+                                let mut regs: libc::user_regs_struct = std::mem::zeroed();
+                                libc::ptrace(
+                                    libc::PTRACE_GETREGS,
+                                    child,
+                                    0,
+                                    &mut regs as *mut _
+                                );
+
+                                /*
+                                For some reason, there are two sources of triggering seccomp. So just for initial workaround,
+                                we ignore first event.
+                                */
+
+                                if has_accepted_first == false {
+                                    has_accepted_first = true;
+                                    libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
+                                    continue;
+                                }
+                                // https://docs.rs/libc/latest/libc/struct.user_regs_struct.html for registers
+
+                                println!("syscall = {}", regs.orig_rax);
+                                println!("arg1    = {:#x}", regs.rdi);
+                                println!("arg2    = {:#x}", regs.rsi);
+                                println!("arg3    = {:#x}", regs.rdx);
+
+                                // Continue with syscall-stop
+                                libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
+                                continue;
+                            }
+                        }
+
+                        // else normal stop:
+>>>>>>> james
                         libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
                     }
                 }
             }
         }
         Ok(Fork::Child) => {
-            install_sigsys_handler();
             install_seccomp_trap_filter(); // installs filter in child process
             println!("Child process: executing {:?}", args.path);
 
