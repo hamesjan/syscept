@@ -20,7 +20,7 @@ fn install_seccomp_trap_filter() {
 //        (libc::SYS_accept4, vec![]),
         (libc::SYS_write, vec![]),
         // (libc::SYS_read, vec![]),
-        // (libc::SYS_getpid, vec![]),
+        (libc::SYS_getpid, vec![]),
 
         // Will have to define for all syscalls used by target binary
         // Where you define policy for each syscall on watchlist 
@@ -126,7 +126,7 @@ fn main(){
                                     continue;
                                 }
                                 // https://docs.rs/libc/latest/libc/struct.user_regs_struct.html for registers
-                                
+
                                 println!("syscall = {}", regs.orig_rax);
                                 println!("arg1    = {:#x}", regs.rdi);
                                 println!("arg2    = {:#x}", regs.rsi);
