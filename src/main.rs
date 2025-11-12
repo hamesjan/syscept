@@ -37,6 +37,7 @@ extern "C" fn sigsys_handler(sig: i32, info: *mut siginfo_t, _ctx: *mut c_void) 
 }
 
 fn install_sigsys_handler() {
+    // can't just execl because signal handlers will be reset.
     unsafe {
         let mut act: sigaction = std::mem::zeroed();
         act.sa_sigaction = sigsys_handler as usize;
@@ -53,18 +54,18 @@ fn install_seccomp_trap_filter() {
     // Only allow write syscall, everything else triggers Trap (SIGSYS)
     let filter: BpfProgram = SeccompFilter::new(
     vec![
-        (libc::SYS_accept4, vec![]),
+        // (libc::SYS_accept4, vec![]),
         (libc::SYS_write, vec![]),
-        (libc::SYS_read, vec![]),
-        (libc::SYS_getpid, vec![]),
+        // (libc::SYS_read, vec![]),
+        // (libc::SYS_getpid, vec![]),
 
         // Will have to define for all syscalls used by target binary
         // Where you define policy for each syscall on watchlist 
     ]
     .into_iter()
     .collect(),
-    SeccompAction::Trap, // not in filter
-    SeccompAction::Allow, // match
+    SeccompAction::Allow, // not in filter
+    SeccompAction::Trap, // match
     std::env::consts::ARCH.try_into().unwrap(),
     )
     .unwrap()
