@@ -7,10 +7,53 @@ use seccompiler::{
 };
 use std::convert::TryInto;
 use libc::{self, c_void, siginfo_t, sigaction, c_int, pid_t, SIGTRAP, WIFEXITED, WEXITSTATUS, WSTOPSIG, WIFSTOPPED};
+use syscalls::{syscall, Sysno, SyscallArgs, Errno};
 
 // for CLI path
 struct Cli {
     path: PathBuf,
+}
+
+
+macro_rules! syscall_enum {
+    (
+        $name:ident {
+            $( $variant:ident = $value:expr ),* $(,)?
+        }
+    ) => {
+        #[repr(u64)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum $name {
+            $( $variant = $value ),*
+        }
+
+        impl $name {
+            /// Return all enum variants as a slice
+            fn variants() -> &'static [Self] {
+                static VARIANTS: [$name; syscall_enum!(@count $( $variant )*)] = [
+                    $( $name::$variant ),*
+                ];
+                &VARIANTS
+            }
+        }
+
+        impl TryFrom<u64> for $name {
+            type Error = ();
+
+            fn try_from(value: u64) -> Result<Self, Self::Error> {
+                match value {
+                    $( x if x == $name::$variant as u64 => Ok($name::$variant), )*
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+
+    // helper: count number of identifiers
+    (@count $($tt:tt)*) => {
+        <[()]>::len(&[ $( syscall_enum!(@replace $tt) ),* ])
+    };
+    (@replace $_t:tt) => { () };
 }
 
 fn install_seccomp_trap_filter() {
@@ -69,6 +112,8 @@ fn main(){
             let mut status: c_int = 0; // c_int = signed 32 bit int
 
             let mut has_accepted_first = false;
+
+            let mut route_syscall = true; 
             
             // Wait for seccomp traps from the child
             loop {
@@ -127,10 +172,41 @@ fn main(){
                                 }
                                 // https://docs.rs/libc/latest/libc/struct.user_regs_struct.html for registers
 
-                                println!("syscall = {}", regs.orig_rax);
-                                println!("arg1    = {:#x}", regs.rdi);
-                                println!("arg2    = {:#x}", regs.rsi);
-                                println!("arg3    = {:#x}", regs.rdx);
+                                // println!("syscall = {}", regs.orig_rax);
+                                // println!("arg1    = {:#x}", regs.rdi);
+                                // println!("arg2    = {:#x}", regs.rsi);
+                                // println!("arg3    = {:#x}", regs.rdx);
+                                // println!("arg3    = {:#x}", regs.r10);
+                                // println!("arg3    = {:#x}", regs.r8);
+                                // println!("arg3    = {:#x}", regs.r9);
+
+                                let args = SyscallArgs {
+                                    arg0 : regs.rdi as usize,
+                                    arg1 : regs.rsi as usize,
+                                    arg2 : regs.rdx as usize,
+                                    arg3 : regs.r10 as usize,
+                                    arg4 : regs.r8 as usize,
+                                    arg5 : regs.r9 as usize,
+                                };
+
+                                let sysno : Sysno;
+                                match Sysno::try_from(regs.orig_rax as u32) {
+                                    Ok(n) => {
+                                        println!("Syscall: {}", n);
+                                        sysno = n
+                                    },
+                                    Err(_) =>  {
+                                        eprintln!("Unrecognized syscall number: {}", regs.orig_rax);
+                                        break;
+                                    }
+                                }
+
+                                let syscall_result : Result<usize, Errno>;
+                                if route_syscall {
+                                    syscall_result = syscall(sysno, &args);
+                                }
+
+                                // TODO: proper error handling for syscall return values
 
                                 // Continue with syscall-stop
                                 libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
