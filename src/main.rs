@@ -7,6 +7,9 @@ use seccompiler::{
 };
 use std::convert::TryInto;
 use libc::{self, c_void, siginfo_t, sigaction, c_int, pid_t, SIGTRAP, WIFEXITED, WEXITSTATUS, WSTOPSIG, WIFSTOPPED};
+
+// For calling syscalls natively in Rust
+// https://docs.rs/syscalls/0.6.18/syscalls/index.html
 use syscalls::{syscall, Sysno, SyscallArgs, Errno};
 
 // for CLI path
