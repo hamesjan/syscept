@@ -2,9 +2,7 @@
 use std::path::PathBuf;
 use fork::{fork, Fork};
 use std::ffi::CString;
-use seccompiler::{
-    BpfProgram, SeccompAction, SeccompFilter,
-};
+use seccompiler::{BpfProgram, SeccompAction, SeccompFilter,};
 use std::convert::TryInto;
 use libc::{self, c_void, siginfo_t, sigaction, c_int, pid_t, SIGTRAP, WIFEXITED, WEXITSTATUS, WSTOPSIG, WIFSTOPPED};
 
@@ -16,7 +14,6 @@ use syscalls::{syscall, Sysno, SyscallArgs, Errno};
 struct Cli {
     path: PathBuf,
 }
-
 
 fn install_seccomp_trap_filter() {
     // Only allow write syscall, everything else triggers Trap (SIGSYS)
@@ -53,8 +50,6 @@ fn main(){
     match fork() {
         Ok(Fork::Parent(child)) => {
             println!("Continuing execution in parent process, new child has pid: {}", child);
-
-            
             /*
             long ptrace(enum __ptrace_request op, pid_t pid,
                    void *addr, void *data);
@@ -95,12 +90,10 @@ fn main(){
 
                     // status 
                     if WIFSTOPPED(status) { // child is stopped, waitpid returned
-                        
                         /*
                             sig = POSIX signal that caused the child to stop
                             sig = 5 => SIGTRAP
                         */
-
                         let sig = libc::WSTOPSIG(status); // number of signal that caused child to stop
                         println!("child stopped with signal {}", sig);
 
@@ -110,7 +103,6 @@ fn main(){
                         
                         // libc::PTRACE_EVENT_SECCOMP = 7 
 
-                        
                         if sig == SIGTRAP{
                             if event == libc::PTRACE_EVENT_SECCOMP as u32 {
 
@@ -143,12 +135,12 @@ fn main(){
                                 // println!("arg3    = {:#x}", regs.r9);
 
                                 let args = SyscallArgs {
-                                    arg0 : regs.rdi as usize,
-                                    arg1 : regs.rsi as usize,
-                                    arg2 : regs.rdx as usize,
-                                    arg3 : regs.r10 as usize,
-                                    arg4 : regs.r8 as usize,
-                                    arg5 : regs.r9 as usize,
+                                    // arg0 : regs.rdi as usize,
+                                    // arg1 : regs.rsi as usize,
+                                    // arg2 : regs.rdx as usize,
+                                    // arg3 : regs.r10 as usize,
+                                    // arg4 : regs.r8 as usize,
+                                    // arg5 : regs.r9 as usize,
                                 };
 
                                 let sysno : Sysno;
@@ -163,10 +155,29 @@ fn main(){
                                     }
                                 }
 
+                                /*
+                                inspect arguments relative to whatever syscall it is, 
+
+                                i.e. open(path, flags, mode)
+
+                                check path if path is under process previlege level
+                                */
+
                                 let syscall_result : Result<usize, Errno>;
                                 if route_syscall {
                                     syscall_result = syscall(sysno, &args);
                                 }
+
+                                /*
+
+
+                                check sysctl and see if kernel parameters are all same
+                                check privelge of child after executing syscall
+                                check registers and modify childs based on what happened.
+
+                                try to get exit of the syscall
+
+                                */
 
                                 // TODO: proper error handling for syscall return values
 
@@ -175,7 +186,6 @@ fn main(){
                                 continue;
                             }
                         }
-
                         // else normal stop:
                         libc::ptrace(libc::PTRACE_CONT, child, 0, 0);
                     }
