@@ -18,47 +18,6 @@ struct Cli {
 }
 
 
-macro_rules! syscall_enum {
-    (
-        $name:ident {
-            $( $variant:ident = $value:expr ),* $(,)?
-        }
-    ) => {
-        #[repr(u64)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        enum $name {
-            $( $variant = $value ),*
-        }
-
-        impl $name {
-            /// Return all enum variants as a slice
-            fn variants() -> &'static [Self] {
-                static VARIANTS: [$name; syscall_enum!(@count $( $variant )*)] = [
-                    $( $name::$variant ),*
-                ];
-                &VARIANTS
-            }
-        }
-
-        impl TryFrom<u64> for $name {
-            type Error = ();
-
-            fn try_from(value: u64) -> Result<Self, Self::Error> {
-                match value {
-                    $( x if x == $name::$variant as u64 => Ok($name::$variant), )*
-                    _ => Err(()),
-                }
-            }
-        }
-    };
-
-    // helper: count number of identifiers
-    (@count $($tt:tt)*) => {
-        <[()]>::len(&[ $( syscall_enum!(@replace $tt) ),* ])
-    };
-    (@replace $_t:tt) => { () };
-}
-
 fn install_seccomp_trap_filter() {
     // Only allow write syscall, everything else triggers Trap (SIGSYS)
     let filter: BpfProgram = SeccompFilter::new(
